@@ -1,14 +1,10 @@
 # lock
 
-Block distracting websites from your terminal.
+A quick script I use to block Twitter (and other sites) across all browsers. Written by Claude.
 
-## Why?
+The idea: make locking frictionless, but unlocking hard. One command blocks a site instantly via `/etc/hosts`. To unblock, you have to manually edit the file with sudo. Just enough friction to break the habit.
 
-Browser extensions are too easy to disable. `lock` makes blocking instant but unlocking deliberately hard - you have to manually edit `/etc/hosts` with sudo. Just enough friction to break the habit.
-
-## How it works
-
-Adds entries to `/etc/hosts` pointing domains to `0.0.0.0`, then flushes DNS cache. Works immediately across all browsers.
+There's intentionally no `unlock` command.
 
 ## Install
 
