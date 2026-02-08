@@ -8,12 +8,18 @@ Block any website from your terminal. One command to lock, one to unlock.
 
 ## Install
 
-```bash
-# Clone the repo
-git clone https://github.com/yourusername/lock.git
+One-line install:
 
-# Add to your PATH (add this to your .zshrc or .bashrc)
-alias lock="/path/to/lock/lock"
+```bash
+curl -fsSL https://raw.githubusercontent.com/ronthekiehn/lock/main/install.sh | bash
+```
+
+Or manually:
+
+```bash
+# Download and install
+sudo curl -fsSL https://raw.githubusercontent.com/ronthekiehn/lock/main/lock -o /usr/local/bin/lock
+sudo chmod +x /usr/local/bin/lock
 ```
 
 ## Usage
