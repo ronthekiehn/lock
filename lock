@@ -3,56 +3,31 @@
 # lock - Block a website via /etc/hosts
 #
 # Usage:
-#   lock <domain>            Block a domain
-#   lock <domain> --unlock   Unblock a domain
+#   lock <domain>
 #
 # Examples:
 #   lock x.com
 #   lock reddit.com
-#   lock x.com --unlock
 
 set -e
 
 # --- Argument parsing ---
 
 if [ -z "$1" ]; then
-    echo "Usage: lock <domain> [--unlock]"
+    echo "Usage: lock <domain>"
     echo ""
     echo "Examples:"
     echo "  lock x.com"
     echo "  lock reddit.com"
-    echo "  lock x.com --unlock"
     exit 1
 fi
 
 DOMAIN="$1"
-UNLOCK=false
-
-if [ "$2" = "--unlock" ]; then
-    UNLOCK=true
-fi
 
 # Strip protocol/www if the user passed a URL
 DOMAIN=$(echo "$DOMAIN" | sed 's|https\?://||' | sed 's|www\.||' | sed 's|/.*||')
 
 LOCK_TAG="# lock: $DOMAIN"
-
-# --- Unlock ---
-
-if [ "$UNLOCK" = true ]; then
-    echo "🔓 Unlocking $DOMAIN..."
-
-    # Remove all lines associated with this domain's lock block
-    sudo sed -i '' "/^$LOCK_TAG$/,/^$/d" /etc/hosts 2>/dev/null || true
-    # Clean up any straggling 0.0.0.0 entries for this domain
-    sudo sed -i '' "/0\.0\.0\.0.*$DOMAIN/d" /etc/hosts 2>/dev/null || true
-
-    sudo dscacheutil -flushcache
-    sudo killall -HUP mDNSResponder 2>/dev/null || true
-
-    echo "✅ $DOMAIN unlocked"
-    exit 0
-fi
 
 # --- Lock ---
 
@@ -82,5 +57,4 @@ echo "✅ DNS cache flushed"
 echo ""
 echo "🔒 $DOMAIN is now blocked"
 echo ""
-echo "To unlock:"
-echo "  lock $DOMAIN --unlock"
+echo "To unlock: sudo nano /etc/hosts (remove the lock entries)"
