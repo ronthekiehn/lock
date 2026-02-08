@@ -17,9 +17,10 @@ curl -fsSL https://raw.githubusercontent.com/ronthekiehn/lock/main/install.sh | 
 Or manually:
 
 ```bash
-# Download and install
-sudo curl -fsSL https://raw.githubusercontent.com/ronthekiehn/lock/main/lock -o /usr/local/bin/lock
-sudo chmod +x /usr/local/bin/lock
+# Download as unprivileged user, then install
+curl -fsSL https://raw.githubusercontent.com/ronthekiehn/lock/main/lock -o lock
+chmod +x lock
+sudo install -m 0755 lock /usr/local/bin/lock
 ```
 
 ## Usage
