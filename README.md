@@ -1,18 +1,14 @@
 # lock
 
-Block distracting websites from your terminal. One command, instant effect.
+Block distracting websites from your terminal.
 
 ## Why?
 
-We all have those websites that eat our time. Twitter, Reddit, YouTube - you know the ones. The problem isn't accessing them, it's *how easy* it is to access them. One moment of weakness and you're doomscrolling for an hour.
-
-Browser extensions can be disabled with a click. Screen time restrictions feel patronizing. What you need is *friction* - just enough resistance to break the habit loop.
-
-`lock` makes blocking easy and unblocking hard. Run one command and the site is gone. To get it back, you have to manually edit `/etc/hosts` with sudo, find the right lines, and remove them. That's enough friction to make you think twice.
+Browser extensions are too easy to disable. `lock` makes blocking instant but unlocking deliberately hard - you have to manually edit `/etc/hosts` with sudo. Just enough friction to break the habit.
 
 ## How it works
 
-`lock` adds entries to `/etc/hosts` pointing the domain to `0.0.0.0`, then flushes your DNS cache. The site becomes unreachable immediately - no browser restart needed. Simple, effective, and OS-level (works across all browsers).
+Adds entries to `/etc/hosts` pointing domains to `0.0.0.0`, then flushes DNS cache. Works immediately across all browsers.
 
 ## Install
 
@@ -56,6 +52,10 @@ The friction is the point - if it was easy to unlock, it wouldn't work.
 - `sudo` access (required to modify `/etc/hosts`)
 
 **Note:** DNS cache flushing is handled automatically on macOS and most Linux systems. On other systems, you may need to restart your browser for changes to take effect.
+
+## Credits
+
+Built with [Claude](https://claude.ai) (Anthropic).
 
 ## License
 
