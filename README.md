@@ -8,33 +8,19 @@ Block any website from your terminal. One command to lock, one to unlock.
 
 ## Install
 
-**Recommended** (inspect before running):
-
-```bash
-# Download the installer
-curl -fsSL https://raw.githubusercontent.com/ronthekiehn/lock/main/install.sh -o install.sh
-
-# Review it (optional but recommended)
-cat install.sh
-
-# Run it
-bash install.sh
-```
-
-**One-line**:
-
 ```bash
 curl -fsSL https://raw.githubusercontent.com/ronthekiehn/lock/main/install.sh | sh
 ```
 
-**Manual install**:
+Or manually:
 
 ```bash
-# Download as unprivileged user, then install
 curl -fsSL https://raw.githubusercontent.com/ronthekiehn/lock/main/lock -o lock
 chmod +x lock
 sudo install -m 0755 lock /usr/local/bin/lock
 ```
+
+The install script is [open source](https://github.com/ronthekiehn/lock/blob/main/install.sh) - feel free to review it first.
 
 ## Usage
 
