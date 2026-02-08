@@ -11,6 +11,13 @@
 
 set -e
 
+# Check OS
+if [[ "$(uname)" != "Darwin" ]]; then
+    echo "❌ Error: lock is currently only supported on macOS"
+    echo "   (requires dscacheutil and mDNSResponder)"
+    exit 1
+fi
+
 # --- Argument parsing ---
 
 if [ -z "$1" ]; then
