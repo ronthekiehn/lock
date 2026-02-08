@@ -9,12 +9,18 @@ Block any website from your terminal. One command to lock, one to unlock.
 ## Install
 
 ```bash
-# Clone the repo
-git clone https://github.com/yourusername/lock.git
-
-# Add to your PATH (add this to your .zshrc or .bashrc)
-alias lock="/path/to/lock/lock"
+curl -fsSL https://raw.githubusercontent.com/ronthekiehn/lock/main/install.sh | sh
 ```
+
+Or manually:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/ronthekiehn/lock/main/lock -o lock
+chmod +x lock
+sudo install -m 0755 lock /usr/local/bin/lock
+```
+
+The install script is [open source](https://github.com/ronthekiehn/lock/blob/main/install.sh) - feel free to review it first.
 
 ## Usage
 
@@ -36,8 +42,10 @@ lock youtube.com
 
 ## Requirements
 
-- macOS (uses `dscacheutil` and `mDNSResponder` for DNS flushing)
+- Unix-like system with `/etc/hosts` (macOS, Linux, BSD, WSL)
 - `sudo` access (required to modify `/etc/hosts`)
+
+**Note:** DNS cache flushing is handled automatically on macOS and most Linux systems. On other systems, you may need to restart your browser for changes to take effect.
 
 ## License
 
