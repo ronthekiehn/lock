@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 #
 # lock - Block a website via /etc/hosts
 #
@@ -50,16 +50,16 @@ echo "$HOSTS_ENTRIES" | sudo tee -a /etc/hosts > /dev/null
 echo "✅ Added $DOMAIN to /etc/hosts"
 
 # Flush DNS cache (OS-specific)
-if [[ "$(uname)" == "Darwin" ]]; then
+if [ "$(uname)" = "Darwin" ]; then
     # macOS
     sudo dscacheutil -flushcache
     sudo killall -HUP mDNSResponder 2>/dev/null || true
     echo "✅ DNS cache flushed"
-elif [[ "$(uname)" == "Linux" ]]; then
+elif [ "$(uname)" = "Linux" ]; then
     # Linux - varies by system, try common ones
-    if command -v systemd-resolve &> /dev/null; then
+    if command -v systemd-resolve > /dev/null 2>&1; then
         sudo systemd-resolve --flush-caches 2>/dev/null && echo "✅ DNS cache flushed" || true
-    elif command -v resolvectl &> /dev/null; then
+    elif command -v resolvectl > /dev/null 2>&1; then
         sudo resolvectl flush-caches 2>/dev/null && echo "✅ DNS cache flushed" || true
     else
         echo "ℹ️  DNS cache flush skipped (restart browser or run: sudo systemd-resolve --flush-caches)"

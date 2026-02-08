@@ -21,10 +21,10 @@ cat install.sh
 bash install.sh
 ```
 
-**One-line** (if you're feeling brave):
+**One-line**:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/ronthekiehn/lock/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/ronthekiehn/lock/main/install.sh | sh
 ```
 
 **Manual install**:
