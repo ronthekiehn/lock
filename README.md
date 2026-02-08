@@ -21,17 +21,10 @@ cat install.sh
 bash install.sh
 ```
 
-**One-line** (for the brave):
+**One-line** (if you're feeling brave):
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/ronthekiehn/lock/main/install.sh | bash
-```
-
-**Install specific version**:
-
-```bash
-# Set version (e.g., v1.0.0 or commit hash)
-LOCK_VERSION=v1.0.0 bash install.sh
 ```
 
 **Manual install**:
@@ -63,10 +56,10 @@ lock youtube.com
 
 ## Requirements
 
-- **macOS only** (uses `dscacheutil` and `mDNSResponder` for DNS flushing)
+- Unix-like system with `/etc/hosts` (macOS, Linux, BSD, WSL)
 - `sudo` access (required to modify `/etc/hosts`)
 
-Linux/Windows support: The script will exit with an error on non-Darwin systems. PRs welcome to add cross-platform DNS flushing support!
+**Note:** DNS cache flushing is handled automatically on macOS and most Linux systems. On other systems, you may need to restart your browser for changes to take effect.
 
 ## License
 

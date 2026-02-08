@@ -11,13 +11,6 @@
 
 set -e
 
-# Check OS
-if [[ "$(uname)" != "Darwin" ]]; then
-    echo "❌ Error: lock is currently only supported on macOS"
-    echo "   (requires dscacheutil and mDNSResponder)"
-    exit 1
-fi
-
 # --- Argument parsing ---
 
 if [ -z "$1" ]; then
@@ -56,10 +49,25 @@ HOSTS_ENTRIES="$LOCK_TAG
 echo "$HOSTS_ENTRIES" | sudo tee -a /etc/hosts > /dev/null
 echo "✅ Added $DOMAIN to /etc/hosts"
 
-# Flush DNS cache
-sudo dscacheutil -flushcache
-sudo killall -HUP mDNSResponder 2>/dev/null || true
-echo "✅ DNS cache flushed"
+# Flush DNS cache (OS-specific)
+if [[ "$(uname)" == "Darwin" ]]; then
+    # macOS
+    sudo dscacheutil -flushcache
+    sudo killall -HUP mDNSResponder 2>/dev/null || true
+    echo "✅ DNS cache flushed"
+elif [[ "$(uname)" == "Linux" ]]; then
+    # Linux - varies by system, try common ones
+    if command -v systemd-resolve &> /dev/null; then
+        sudo systemd-resolve --flush-caches 2>/dev/null && echo "✅ DNS cache flushed" || true
+    elif command -v resolvectl &> /dev/null; then
+        sudo resolvectl flush-caches 2>/dev/null && echo "✅ DNS cache flushed" || true
+    else
+        echo "ℹ️  DNS cache flush skipped (restart browser or run: sudo systemd-resolve --flush-caches)"
+    fi
+else
+    echo "ℹ️  DNS cache flush skipped (unsupported OS: $(uname))"
+    echo "   You may need to restart your browser for changes to take effect"
+fi
 
 echo ""
 echo "🔒 $DOMAIN is now blocked"

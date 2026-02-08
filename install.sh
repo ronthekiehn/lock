@@ -5,19 +5,11 @@
 
 set -e
 
-# Check OS
-if [[ "$(uname)" != "Darwin" ]]; then
-    echo "❌ Error: lock is currently only supported on macOS"
-    echo "   Detected OS: $(uname)"
-    exit 1
-fi
-
 INSTALL_DIR="/usr/local/bin"
-VERSION="${LOCK_VERSION:-main}"
-REPO_URL="https://raw.githubusercontent.com/ronthekiehn/lock/${VERSION}/lock"
+REPO_URL="https://raw.githubusercontent.com/ronthekiehn/lock/main/lock"
 TEMP_FILE="/tmp/lock.$$"
 
-echo "🔒 Installing lock (version: ${VERSION})..."
+echo "🔒 Installing lock..."
 
 # Download the script as unprivileged user
 echo "Downloading lock script..."
