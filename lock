@@ -62,7 +62,8 @@ elif [ "$(uname)" = "Linux" ]; then
     elif command -v resolvectl > /dev/null 2>&1; then
         sudo resolvectl flush-caches 2>/dev/null && echo "✅ DNS cache flushed" || true
     else
-        echo "ℹ️  DNS cache flush skipped (restart browser or run: sudo systemd-resolve --flush-caches)"
+        echo "ℹ️  DNS cache flush skipped (no systemd DNS resolver detected)"
+        echo "   Restart your browser for changes to take effect"
     fi
 else
     echo "ℹ️  DNS cache flush skipped (unsupported OS: $(uname))"

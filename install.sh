@@ -11,6 +11,12 @@ TEMP_FILE="/tmp/lock.$$"
 
 echo "🔒 Installing lock..."
 
+# Ensure install directory exists
+if [ ! -d "$INSTALL_DIR" ]; then
+    echo "Creating $INSTALL_DIR..."
+    sudo mkdir -p "$INSTALL_DIR"
+fi
+
 # Download the script as unprivileged user
 echo "Downloading lock script..."
 curl -fsSL "$REPO_URL" -o "$TEMP_FILE"
