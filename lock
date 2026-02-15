@@ -500,11 +500,14 @@ for domain in $DOMAINS; do
     fi
 
     LOCK_TAG="# lock: $domain"
+    NOTE_LINE=""
     if [ -n "$NOTE" ]; then
-        LOCK_TAG="$LOCK_TAG $SAFE_NOTE"
+        NOTE_LINE="# note: $SAFE_NOTE
+"
     fi
 
     HOSTS_ENTRIES="$LOCK_TAG
+$NOTE_LINE
 0.0.0.0 $domain
 0.0.0.0 www.$domain
 "
