@@ -3,128 +3,318 @@
 # lock - Lock a website via /etc/hosts
 #
 # Usage:
-#   lock [options] <domain>
+#   lock [options] <domain> [domain ...]
 #
 # Examples:
-#   lock x.com
-#   lock reddit.com
+#   lock x.com reddit.com
+#   lock -n "ship checkout" x.com reddit.com
 #   lock --kill-terminal x.com
 #   lock -j x.com
+#   lock --status
 
 set -e
 
-# --- Argument parsing ---
+STATE_VERSION=1
 
 usage() {
-    echo "Usage: lock [options] <domain>"
+    echo "Usage: lock [options] <domain> [domain ...]"
     echo ""
     echo "Options:"
+    echo "  -n, --note <text>     Add a note to lock comments in /etc/hosts"
+    echo "  -s, --status          Show currently locked domains and durations"
     echo "  -t, --kill-terminal   Close the current terminal session after locking"
-    echo "  -j, --disable-js      Best-effort: disable JavaScript in Chrome for the domain"
+    echo "  -j, --disable-js      Best-effort: disable JavaScript in Chrome for each domain"
     echo "  -h, --help            Show this help message"
     echo ""
     echo "Examples:"
-    echo "  lock x.com"
-    echo "  lock reddit.com"
+    echo "  lock x.com reddit.com"
+    echo "  lock -n \"ship checkout\" x.com reddit.com"
     echo "  lock --kill-terminal x.com"
     echo "  lock -j x.com"
+    echo "  lock --status"
     echo ""
     echo "Unlock:"
     echo "  sudo nano /etc/hosts (remove the lock entries)"
 }
 
-KILL_TERMINAL=0
-DISABLE_JS=0
+normalize_domain() {
+    echo "$1" \
+        | sed 's|https\?://||' \
+        | sed 's|www\.||' \
+        | sed 's|/.*||' \
+        | tr '[:upper:]' '[:lower:]'
+}
 
-while [ $# -gt 0 ]; do
-    case "$1" in
-        -t|--kill-terminal)
-            KILL_TERMINAL=1
+is_valid_domain() {
+    echo "$1" | grep -Eq '^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$'
+}
+
+utc_now() {
+    date -u +"%Y-%m-%dT%H:%M:%SZ"
+}
+
+state_file_path() {
+    case "$(uname)" in
+        Darwin)
+            echo "$HOME/Library/Application Support/lock/state.json"
             ;;
-        -j|--disable-js)
-            DISABLE_JS=1
-            ;;
-        -h|--help)
-            usage
-            exit 0
-            ;;
-        --)
-            shift
-            break
-            ;;
-        -*)
-            echo "Unknown option: $1"
-            usage
-            exit 1
+        Linux)
+            echo "$HOME/.local/state/lock/state.json"
             ;;
         *)
-            break
+            echo ""
             ;;
     esac
-    shift
-done
+}
 
-if [ -z "$1" ]; then
-    usage
-    exit 1
-fi
+active_domains_from_hosts() {
+    awk '/^[[:space:]]*0\.0\.0\.0[[:space:]]+/ {print $2}' /etc/hosts 2>/dev/null \
+        | sed 's/[[:space:]]#.*$//' \
+        | sed '/^$/d' \
+        | while IFS= read -r host; do
+            normalized=$(normalize_domain "$host")
+            if is_valid_domain "$normalized"; then
+                echo "$normalized"
+            fi
+        done \
+        | awk 'NF && !seen[$0]++'
+}
 
-DOMAIN="$1"
+sync_state_after_lock() {
+    TOUCHED="$1"
+    NOTE_TEXT="$2"
+    CURRENT_NOW="$3"
+    STATE_PATH=$(state_file_path)
 
-# Strip protocol/www if the user passed a URL
-DOMAIN=$(echo "$DOMAIN" | sed 's|https\?://||' | sed 's|www\.||' | sed 's|/.*||')
-
-LOCK_TAG="# lock: $DOMAIN"
-
-# --- Lock ---
-
-echo "🔒 Locking $DOMAIN..."
-
-# Check if already locked
-ALREADY_LOCKED=0
-if grep -q "0.0.0.0 $DOMAIN" /etc/hosts 2>/dev/null; then
-    echo "ℹ️  $DOMAIN is already locked"
-    ALREADY_LOCKED=1
-fi
-
-if [ "$ALREADY_LOCKED" -eq 0 ]; then
-    # Build hosts entries
-    HOSTS_ENTRIES="$LOCK_TAG
-0.0.0.0 $DOMAIN
-0.0.0.0 www.$DOMAIN
-"
-
-    # Add entries to /etc/hosts
-    echo "$HOSTS_ENTRIES" | sudo tee -a /etc/hosts > /dev/null
-    echo "✅ Added $DOMAIN to /etc/hosts"
-
-    # Flush DNS cache (OS-specific)
-    if [ "$(uname)" = "Darwin" ]; then
-        # macOS
-        sudo dscacheutil -flushcache
-        sudo killall -HUP mDNSResponder 2>/dev/null || true
-        echo "✅ DNS cache flushed"
-    elif [ "$(uname)" = "Linux" ]; then
-        # Linux - varies by system, try common ones
-        if command -v systemd-resolve > /dev/null 2>&1; then
-            sudo systemd-resolve --flush-caches 2>/dev/null && echo "✅ DNS cache flushed" || true
-        elif command -v resolvectl > /dev/null 2>&1; then
-            sudo resolvectl flush-caches 2>/dev/null && echo "✅ DNS cache flushed" || true
-        else
-            echo "ℹ️  DNS cache flush skipped (no systemd DNS resolver detected)"
-            echo "   Restart your browser for changes to take effect"
-        fi
-    else
-        echo "ℹ️  DNS cache flush skipped (unsupported OS: $(uname))"
-        echo "   You may need to restart your browser for changes to take effect"
+    if [ -z "$STATE_PATH" ]; then
+        return 0
     fi
 
-    echo ""
-    echo "🔒 $DOMAIN is now locked"
-fi
-echo ""
+    if ! command -v python3 >/dev/null 2>&1; then
+        echo "⚠️  python3 not found; skipping lock state update"
+        return 0
+    fi
+
+    STATE_DIR=$(dirname "$STATE_PATH")
+    mkdir -p "$STATE_DIR"
+
+    ACTIVE="$(active_domains_from_hosts)"
+
+    if ! LOCK_STATE_TOUCHED="$TOUCHED" \
+    LOCK_STATE_ACTIVE="$ACTIVE" \
+    LOCK_STATE_NOTE="$NOTE_TEXT" \
+    LOCK_STATE_NOW="$CURRENT_NOW" \
+    LOCK_STATE_VERSION="$STATE_VERSION" \
+    python3 - "$STATE_PATH" <<'PY'
+import json
+import os
+import tempfile
+from datetime import datetime
+import sys
+
+state_path = sys.argv[1]
+touched = [line.strip() for line in os.environ.get("LOCK_STATE_TOUCHED", "").splitlines() if line.strip()]
+active = [line.strip() for line in os.environ.get("LOCK_STATE_ACTIVE", "").splitlines() if line.strip()]
+note = os.environ.get("LOCK_STATE_NOTE", "")
+now = os.environ.get("LOCK_STATE_NOW", "")
+version = int(os.environ.get("LOCK_STATE_VERSION", "1"))
+
+
+def valid_ts(value):
+    if not isinstance(value, str):
+        return False
+    try:
+        datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except Exception:
+        return False
+    return True
+
+
+def load_state(path):
+    if not os.path.exists(path):
+        return None, False
+    try:
+        with open(path, "r", encoding="utf-8") as handle:
+            loaded = json.load(handle)
+    except Exception:
+        return None, False
+    if not isinstance(loaded, dict):
+        return None, False
+    domains = loaded.get("domains")
+    if loaded.get("state_version") == version and isinstance(domains, dict):
+        return loaded, True
+    return loaded, False
+
+
+def extract_record(existing, domain):
+    if not isinstance(existing, dict):
+        return {}
+    raw_domains = existing.get("domains")
+    if not isinstance(raw_domains, dict):
+        return {}
+    record = raw_domains.get(domain)
+    if not isinstance(record, dict):
+        return {}
+    output = {}
+    timestamp = record.get("locked_at")
+    if valid_ts(timestamp):
+        output["locked_at"] = timestamp
+    saved_note = record.get("note")
+    if isinstance(saved_note, str) and saved_note:
+        output["note"] = saved_note
+    return output
+
+
+existing, valid_current = load_state(state_path)
+
+if valid_current:
+    state = existing
+    domains_map = state.setdefault("domains", {})
+    for domain in touched:
+        record = domains_map.get(domain)
+        if not isinstance(record, dict):
+            record = {}
+        record["locked_at"] = now
+        if note:
+            record["note"] = note
+        else:
+            record.pop("note", None)
+        domains_map[domain] = record
+else:
+    state = {"state_version": version, "domains": {}}
+    domains_map = state["domains"]
+    touched_set = set(touched)
+    for domain in active:
+        record = extract_record(existing, domain)
+        if domain in touched_set:
+            record["locked_at"] = now
+            if note:
+                record["note"] = note
+            else:
+                record.pop("note", None)
+        domains_map[domain] = record
+
+state["state_version"] = version
+
+directory = os.path.dirname(state_path) or "."
+os.makedirs(directory, exist_ok=True)
+fd, tmp_path = tempfile.mkstemp(prefix=".state.", suffix=".json", dir=directory)
+try:
+    with os.fdopen(fd, "w", encoding="utf-8") as handle:
+        json.dump(state, handle, indent=2, sort_keys=True)
+        handle.write("\n")
+    os.replace(tmp_path, state_path)
+except Exception:
+    try:
+        os.unlink(tmp_path)
+    except OSError:
+        pass
+    raise
+PY
+    then
+        echo "⚠️  Failed to update lock state file"
+        return 0
+    fi
+}
+
+show_status() {
+    STATE_PATH=$(state_file_path)
+    ACTIVE="$(active_domains_from_hosts)"
+
+    if [ -z "$ACTIVE" ]; then
+        echo "No active locks found."
+        return 0
+    fi
+
+    if [ -z "$STATE_PATH" ]; then
+        echo "$ACTIVE" | while IFS= read -r domain; do
+            [ -z "$domain" ] && continue
+            echo "$domain locked_for=unknown note=\"\""
+        done
+        return 0
+    fi
+
+    if ! command -v python3 >/dev/null 2>&1; then
+        echo "⚠️  python3 not found; showing status without durations"
+        echo "$ACTIVE" | while IFS= read -r domain; do
+            [ -z "$domain" ] && continue
+            echo "$domain locked_for=unknown note=\"\""
+        done
+        return 0
+    fi
+
+    LOCK_STATE_ACTIVE="$ACTIVE" \
+    LOCK_STATE_VERSION="$STATE_VERSION" \
+    python3 - "$STATE_PATH" <<'PY'
+import json
+import os
+from datetime import datetime, timezone
+import sys
+
+state_path = sys.argv[1]
+active = [line.strip() for line in os.environ.get("LOCK_STATE_ACTIVE", "").splitlines() if line.strip()]
+version = int(os.environ.get("LOCK_STATE_VERSION", "1"))
+now = datetime.now(timezone.utc)
+
+
+def valid_ts(value):
+    if not isinstance(value, str):
+        return None
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except Exception:
+        return None
+
+
+def format_duration(delta_seconds):
+    if delta_seconds < 0:
+        delta_seconds = 0
+    days, rem = divmod(delta_seconds, 86400)
+    hours, rem = divmod(rem, 3600)
+    minutes, _ = divmod(rem, 60)
+    parts = []
+    if days:
+        parts.append(f"{days}d")
+    if hours:
+        parts.append(f"{hours}h")
+    parts.append(f"{minutes}m")
+    return "".join(parts)
+
+
+domains_map = {}
+try:
+    with open(state_path, "r", encoding="utf-8") as handle:
+        loaded = json.load(handle)
+    if (
+        isinstance(loaded, dict)
+        and loaded.get("state_version") == version
+        and isinstance(loaded.get("domains"), dict)
+    ):
+        domains_map = loaded["domains"]
+except Exception:
+    domains_map = {}
+
+for domain in active:
+    record = domains_map.get(domain)
+    if not isinstance(record, dict):
+        record = {}
+    since_raw = record.get("locked_at")
+    since_dt = valid_ts(since_raw)
+    if since_dt is None:
+        locked_for = "unknown"
+    else:
+        delta_seconds = int((now - since_dt.astimezone(timezone.utc)).total_seconds())
+        locked_for = format_duration(delta_seconds)
+    note = record.get("note")
+    if not isinstance(note, str):
+        note = ""
+    safe_note = note.replace('"', '\\"')
+    print(f'{domain} locked_for={locked_for} note="{safe_note}"')
+PY
+}
 
 disable_js_chrome() {
+    TARGET_DOMAIN="$1"
     PREFS_PATH=""
 
     if [ "$(uname)" = "Darwin" ]; then
@@ -138,16 +328,15 @@ disable_js_chrome() {
     fi
 
     if [ -z "$PREFS_PATH" ] || [ ! -f "$PREFS_PATH" ]; then
-        echo "⚠️  Chrome preferences not found; skipping JavaScript disable"
+        echo "⚠️  Chrome preferences not found; skipping JavaScript disable for $TARGET_DOMAIN"
         return 0
     fi
 
     if ! command -v python3 >/dev/null 2>&1; then
-        echo "⚠️  python3 not found; skipping JavaScript disable"
+        echo "⚠️  python3 not found; skipping JavaScript disable for $TARGET_DOMAIN"
         return 0
     fi
 
-    # Close Chrome first so it does not overwrite Preferences on shutdown.
     if [ "$(uname)" = "Darwin" ]; then
         if pgrep -x "Google Chrome" > /dev/null 2>&1; then
             osascript -e 'quit app "Google Chrome"' >/dev/null 2>&1 || true
@@ -158,7 +347,7 @@ disable_js_chrome() {
         pkill -x "chromium" >/dev/null 2>&1 || true
     fi
 
-    if ! python3 - "$PREFS_PATH" "$DOMAIN" <<'PY'
+    if ! python3 - "$PREFS_PATH" "$TARGET_DOMAIN" <<'PY'
 import json
 import sys
 
@@ -186,16 +375,174 @@ with open(prefs_path, "w", encoding="utf-8") as handle:
     json.dump(data, handle, indent=2, sort_keys=True)
 PY
     then
-        echo "⚠️  Failed to update Chrome preferences; skipping JavaScript disable"
+        echo "⚠️  Failed to update Chrome preferences; skipping JavaScript disable for $TARGET_DOMAIN"
         return 0
     fi
 
-    echo "✅ JavaScript disabled for $DOMAIN in Chrome preferences"
+    echo "✅ JavaScript disabled for $TARGET_DOMAIN in Chrome preferences"
 }
 
-if [ "$DISABLE_JS" -eq 1 ]; then
-    disable_js_chrome
+KILL_TERMINAL=0
+DISABLE_JS=0
+SHOW_STATUS=0
+NOTE=""
+DOMAIN_INPUTS=""
+
+while [ $# -gt 0 ]; do
+    case "$1" in
+        -t|--kill-terminal)
+            KILL_TERMINAL=1
+            ;;
+        -j|--disable-js)
+            DISABLE_JS=1
+            ;;
+        -s|--status)
+            SHOW_STATUS=1
+            ;;
+        -n|--note)
+            shift
+            if [ $# -eq 0 ] || [ -z "$1" ]; then
+                echo "Missing value for --note"
+                usage
+                exit 1
+            fi
+            NOTE="$1"
+            ;;
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        --)
+            shift
+            while [ $# -gt 0 ]; do
+                DOMAIN_INPUTS="${DOMAIN_INPUTS}$1
+"
+                shift
+            done
+            break
+            ;;
+        -*)
+            echo "Unknown option: $1"
+            usage
+            exit 1
+            ;;
+        *)
+            DOMAIN_INPUTS="${DOMAIN_INPUTS}$1
+"
+            ;;
+    esac
+    shift
+done
+
+if [ "$SHOW_STATUS" -eq 1 ]; then
+    if [ -n "$DOMAIN_INPUTS" ]; then
+        echo "--status does not accept domains"
+        usage
+        exit 1
+    fi
+    show_status
+    exit 0
 fi
+
+if [ -z "$DOMAIN_INPUTS" ]; then
+    usage
+    exit 1
+fi
+
+RAW_DOMAINS=""
+INVALID_DOMAINS=""
+while IFS= read -r input; do
+    [ -z "$input" ] && continue
+    NORMALIZED=$(normalize_domain "$input")
+    if [ -n "$NORMALIZED" ] && is_valid_domain "$NORMALIZED"; then
+        RAW_DOMAINS="${RAW_DOMAINS}${NORMALIZED}
+"
+    else
+        INVALID_DOMAINS="${INVALID_DOMAINS}${input}
+"
+    fi
+done <<EOF
+$DOMAIN_INPUTS
+EOF
+
+if [ -n "$INVALID_DOMAINS" ]; then
+    echo "Invalid domain input:"
+    echo "$INVALID_DOMAINS" | sed '/^$/d' | while IFS= read -r item; do
+        echo "  - $item"
+    done
+    exit 1
+fi
+
+DOMAINS=$(printf "%s" "$RAW_DOMAINS" | awk 'NF && !seen[$0]++')
+
+if [ -z "$DOMAINS" ]; then
+    echo "No valid domains provided."
+    exit 1
+fi
+
+echo "🔒 Locking domains..."
+
+TOUCHED=""
+ANY_ADDED=0
+RUN_NOW="$(utc_now)"
+
+if [ -n "$NOTE" ]; then
+    SAFE_NOTE=$(printf "%s" "$NOTE" | tr '\r\n' ' ' | sed 's/[[:space:]]\+/ /g; s/^ //; s/ $//')
+fi
+
+for domain in $DOMAINS; do
+    if grep -q "0.0.0.0 $domain" /etc/hosts 2>/dev/null; then
+        echo "ℹ️  $domain is already locked"
+        if [ "$DISABLE_JS" -eq 1 ]; then
+            disable_js_chrome "$domain"
+        fi
+        continue
+    fi
+
+    LOCK_TAG="# lock: $domain"
+    if [ -n "$NOTE" ]; then
+        LOCK_TAG="$LOCK_TAG $SAFE_NOTE"
+    fi
+
+    HOSTS_ENTRIES="$LOCK_TAG
+0.0.0.0 $domain
+0.0.0.0 www.$domain
+"
+    echo "$HOSTS_ENTRIES" | sudo tee -a /etc/hosts > /dev/null
+    echo "✅ Added $domain to /etc/hosts"
+    ANY_ADDED=1
+    TOUCHED="${TOUCHED}${domain}
+"
+
+    if [ "$DISABLE_JS" -eq 1 ]; then
+        disable_js_chrome "$domain"
+    fi
+done
+
+if [ "$ANY_ADDED" -eq 1 ]; then
+    if [ "$(uname)" = "Darwin" ]; then
+        sudo dscacheutil -flushcache
+        sudo killall -HUP mDNSResponder 2>/dev/null || true
+        echo "✅ DNS cache flushed"
+    elif [ "$(uname)" = "Linux" ]; then
+        if command -v systemd-resolve > /dev/null 2>&1; then
+            sudo systemd-resolve --flush-caches 2>/dev/null && echo "✅ DNS cache flushed" || true
+        elif command -v resolvectl > /dev/null 2>&1; then
+            sudo resolvectl flush-caches 2>/dev/null && echo "✅ DNS cache flushed" || true
+        else
+            echo "ℹ️  DNS cache flush skipped (no systemd DNS resolver detected)"
+            echo "   Restart your browser for changes to take effect"
+        fi
+    else
+        echo "ℹ️  DNS cache flush skipped (unsupported OS: $(uname))"
+        echo "   You may need to restart your browser for changes to take effect"
+    fi
+fi
+
+sync_state_after_lock "$TOUCHED" "$NOTE" "$RUN_NOW"
+
+echo ""
+echo "🔒 Lock command completed"
 
 if [ "$KILL_TERMINAL" -eq 1 ]; then
     echo "👋 Closing this terminal session..."
