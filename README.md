@@ -84,7 +84,7 @@ If `state_version` mismatches or the file is corrupt, lock rebuilds state from a
 
 ## Credits
 
-Built with [Claude](https://claude.ai) (Anthropic).
+Built with [Claude](https://claude.ai) (Anthropic) and Codex (OpenAI).
 
 ## License
 
