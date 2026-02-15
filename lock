@@ -67,17 +67,55 @@ state_file_path() {
     esac
 }
 
-active_domains_from_hosts() {
-    awk '/^[[:space:]]*0\.0\.0\.0[[:space:]]+/ {print $2}' /etc/hosts 2>/dev/null \
-        | sed 's/[[:space:]]#.*$//' \
-        | sed '/^$/d' \
-        | while IFS= read -r host; do
-            normalized=$(normalize_domain "$host")
-            if is_valid_domain "$normalized"; then
-                echo "$normalized"
+tool_lock_records_from_hosts() {
+    awk '
+    /^[[:space:]]*# lock:[[:space:]]*/ {
+        line = $0
+        sub(/^[[:space:]]*# lock:[[:space:]]*/, "", line)
+        sub(/[[:space:]]*$/, "", line)
+        current_domain = line
+        current_note = ""
+        next
+    }
+    /^[[:space:]]*# note:[[:space:]]*/ {
+        if (current_domain != "") {
+            line = $0
+            sub(/^[[:space:]]*# note:[[:space:]]*/, "", line)
+            current_note = line
+        }
+        next
+    }
+    /^[[:space:]]*0\.0\.0\.0[[:space:]]+/ {
+        if (current_domain != "") {
+            host = $2
+            sub(/[[:space:]]*#.*$/, "", host)
+            print current_domain "\t" current_note "\t" host
+        }
+        next
+    }
+    /^[[:space:]]*#/ {
+        next
+    }
+    {
+        current_domain = ""
+        current_note = ""
+    }
+    ' /etc/hosts 2>/dev/null \
+        | while IFS="$(printf '\t')" read -r raw_domain raw_note raw_host; do
+            normalized_domain=$(normalize_domain "$raw_domain")
+            normalized_host=$(normalize_domain "$raw_host")
+            if ! is_valid_domain "$normalized_domain"; then
+                continue
+            fi
+            if [ "$normalized_host" = "$normalized_domain" ] || [ "$normalized_host" = "www.$normalized_domain" ]; then
+                printf "%s\t%s\n" "$normalized_domain" "$raw_note"
             fi
         done \
-        | awk 'NF && !seen[$0]++'
+        | awk -F '\t' '!seen[$1]++ {print $1 "\t" $2}'
+}
+
+active_domains_from_hosts() {
+    tool_lock_records_from_hosts | awk -F '\t' '{print $1}'
 }
 
 sync_state_after_lock() {
@@ -98,10 +136,12 @@ sync_state_after_lock() {
     STATE_DIR=$(dirname "$STATE_PATH")
     mkdir -p "$STATE_DIR"
 
-    ACTIVE="$(active_domains_from_hosts)"
+    HOST_RECORDS="$(tool_lock_records_from_hosts)"
+    ACTIVE="$(printf "%s\n" "$HOST_RECORDS" | awk -F '\t' '{print $1}')"
 
     if ! LOCK_STATE_TOUCHED="$TOUCHED" \
     LOCK_STATE_ACTIVE="$ACTIVE" \
+    LOCK_STATE_HOST_RECORDS="$HOST_RECORDS" \
     LOCK_STATE_NOTE="$NOTE_TEXT" \
     LOCK_STATE_NOW="$CURRENT_NOW" \
     LOCK_STATE_VERSION="$STATE_VERSION" \
@@ -115,6 +155,7 @@ import sys
 state_path = sys.argv[1]
 touched = [line.strip() for line in os.environ.get("LOCK_STATE_TOUCHED", "").splitlines() if line.strip()]
 active = [line.strip() for line in os.environ.get("LOCK_STATE_ACTIVE", "").splitlines() if line.strip()]
+host_records = [line.rstrip("\n") for line in os.environ.get("LOCK_STATE_HOST_RECORDS", "").splitlines() if line.strip()]
 note = os.environ.get("LOCK_STATE_NOTE", "")
 now = os.environ.get("LOCK_STATE_NOW", "")
 version = int(os.environ.get("LOCK_STATE_VERSION", "1"))
@@ -166,6 +207,13 @@ def extract_record(existing, domain):
 
 
 existing, valid_current = load_state(state_path)
+host_notes = {}
+for line in host_records:
+    if "\t" not in line:
+        continue
+    domain, host_note = line.split("\t", 1)
+    if domain:
+        host_notes[domain] = host_note
 
 if valid_current:
     state = existing
@@ -186,6 +234,9 @@ else:
     touched_set = set(touched)
     for domain in active:
         record = extract_record(existing, domain)
+        host_note = host_notes.get(domain, "")
+        if host_note:
+            record["note"] = host_note
         if domain in touched_set:
             record["locked_at"] = now
             if note:
@@ -219,7 +270,8 @@ PY
 
 show_status() {
     STATE_PATH=$(state_file_path)
-    ACTIVE="$(active_domains_from_hosts)"
+    HOST_RECORDS="$(tool_lock_records_from_hosts)"
+    ACTIVE="$(printf "%s\n" "$HOST_RECORDS" | awk -F '\t' '{print $1}')"
 
     if [ -z "$ACTIVE" ]; then
         echo "No active locks found."
@@ -227,23 +279,26 @@ show_status() {
     fi
 
     if [ -z "$STATE_PATH" ]; then
-        echo "$ACTIVE" | while IFS= read -r domain; do
+        echo "$HOST_RECORDS" | while IFS="$(printf '\t')" read -r domain host_note; do
             [ -z "$domain" ] && continue
-            echo "$domain locked_for=unknown note=\"\""
+            safe_note=$(printf "%s" "$host_note" | sed 's/"/\\"/g')
+            echo "$domain locked_for=unknown note=\"$safe_note\""
         done
         return 0
     fi
 
     if ! command -v python3 >/dev/null 2>&1; then
         echo "⚠️  python3 not found; showing status without durations"
-        echo "$ACTIVE" | while IFS= read -r domain; do
+        echo "$HOST_RECORDS" | while IFS="$(printf '\t')" read -r domain host_note; do
             [ -z "$domain" ] && continue
-            echo "$domain locked_for=unknown note=\"\""
+            safe_note=$(printf "%s" "$host_note" | sed 's/"/\\"/g')
+            echo "$domain locked_for=unknown note=\"$safe_note\""
         done
         return 0
     fi
 
     LOCK_STATE_ACTIVE="$ACTIVE" \
+    LOCK_STATE_HOST_RECORDS="$HOST_RECORDS" \
     LOCK_STATE_VERSION="$STATE_VERSION" \
     python3 - "$STATE_PATH" <<'PY'
 import json
@@ -253,6 +308,7 @@ import sys
 
 state_path = sys.argv[1]
 active = [line.strip() for line in os.environ.get("LOCK_STATE_ACTIVE", "").splitlines() if line.strip()]
+host_records = [line.rstrip("\n") for line in os.environ.get("LOCK_STATE_HOST_RECORDS", "").splitlines() if line.strip()]
 version = int(os.environ.get("LOCK_STATE_VERSION", "1"))
 now = datetime.now(timezone.utc)
 
@@ -282,6 +338,13 @@ def format_duration(delta_seconds):
 
 
 domains_map = {}
+host_notes = {}
+for line in host_records:
+    if "\t" not in line:
+        continue
+    domain, host_note = line.split("\t", 1)
+    if domain:
+        host_notes[domain] = host_note
 try:
     with open(state_path, "r", encoding="utf-8") as handle:
         loaded = json.load(handle)
@@ -307,7 +370,9 @@ for domain in active:
         locked_for = format_duration(delta_seconds)
     note = record.get("note")
     if not isinstance(note, str):
-        note = ""
+        note = host_notes.get(domain, "")
+    if not note:
+        note = host_notes.get(domain, "")
     safe_note = note.replace('"', '\\"')
     print(f'{domain} locked_for={locked_for} note="{safe_note}"')
 PY
