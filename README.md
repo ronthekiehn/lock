@@ -31,6 +31,8 @@ lock x.com
 lock reddit.com
 lock youtube.com
 lock instagram.com
+lock x.com reddit.com youtube.com
+lock -n "finish PR before scrolling" x.com reddit.com
 ```
 
 To unlock, you'll need to manually edit `/etc/hosts`:
@@ -46,18 +48,43 @@ The friction is the point - if it was easy to unlock, it wouldn't work.
 
 - Unix-like system with `/etc/hosts` (macOS, Linux, BSD, WSL)
 - `sudo` access (required to modify `/etc/hosts`)
-- `python3` (optional; used by `-j`/`--disable-js`)
+- `python3` (optional; used by `-j`/`--disable-js`, state metadata, and duration calculations for `--status`)
 
 **Note:** DNS cache flushing is handled automatically on macOS and most Linux systems. On other systems, you may need to restart your browser for changes to take effect.
 
 ## Flags
 
+- `-n`, `--note`: Add a shared note for this lock command. The note is written into `/etc/hosts` lock comments.
+- `-s`, `--status`: Show currently active locks, including duration (`locked_for`) and saved note metadata.
 - `-t`, `--kill-terminal`: Close the current terminal session after locking the domain.
-- `-j`, `--disable-js`: Best-effort: disable JavaScript for the domain in Chrome preferences and close Chrome if running.
+- `-j`, `--disable-js`: Best-effort: disable JavaScript in Chrome preferences for each provided domain and close Chrome if running.
+
+## State File
+
+`lock --status` reads active locks from `/etc/hosts` and enriches duration/note data from a state file:
+
+- macOS: `~/Library/Application Support/lock/state.json`
+- Linux/WSL: `~/.local/state/lock/state.json`
+
+State format:
+
+```json
+{
+  "state_version": 1,
+  "domains": {
+    "x.com": {
+      "locked_at": "2026-02-15T18:40:00Z",
+      "note": "finish checkout work"
+    }
+  }
+}
+```
+
+If `state_version` mismatches or the file is corrupt, lock rebuilds state from active `/etc/hosts` lock entries and writes `state_version: 1`.
 
 ## Credits
 
-Built with [Claude](https://claude.ai) (Anthropic).
+Built with [Claude](https://claude.ai) (Anthropic) and Codex (OpenAI).
 
 ## License
 
