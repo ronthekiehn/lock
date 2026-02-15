@@ -20,7 +20,7 @@ usage() {
     echo ""
     echo "Options:"
     echo "  -t, --kill-terminal   Close the current terminal session after locking"
-    echo "  -j, --disable-js      Best-effort: disable JavaScript in Chrome for the domain"
+    echo "  -j, --disable-js      Disable JavaScript in Chrome for the domain (requires python3)"
     echo "  -h, --help            Show this help message"
     echo ""
     echo "Examples:"
@@ -142,16 +142,6 @@ disable_js_chrome() {
         return 0
     fi
 
-    if [ ! -w "$PREFS_PATH" ]; then
-        echo "⚠️  Chrome preferences not writable; skipping JavaScript disable"
-        return 0
-    fi
-
-    if ! command -v python3 >/dev/null 2>&1; then
-        echo "⚠️  python3 not found; skipping JavaScript disable"
-        return 0
-    fi
-
     # Close Chrome first so it does not overwrite Preferences on shutdown.
     if [ "$(uname)" = "Darwin" ]; then
         if pgrep -x "Google Chrome" > /dev/null 2>&1; then
@@ -163,12 +153,9 @@ disable_js_chrome() {
         pkill -x "chromium" >/dev/null 2>&1 || true
     fi
 
-    if ! python3 - "$PREFS_PATH" "$DOMAIN" <<'PY'
+    python3 - "$PREFS_PATH" "$DOMAIN" <<'PY'
 import json
-import os
-import shutil
 import sys
-import tempfile
 
 prefs_path = sys.argv[1]
 domain = sys.argv[2]
@@ -190,31 +177,9 @@ def set_js_lock(host):
 set_js_lock(domain)
 set_js_lock(f"www.{domain}")
 
-backup_path = prefs_path + ".lock.bak"
-try:
-    shutil.copy2(prefs_path, backup_path)
-except OSError:
-    pass
-
-prefs_dir = os.path.dirname(prefs_path) or "."
-fd, tmp_path = tempfile.mkstemp(prefix="Preferences.lock.", dir=prefs_dir)
-try:
-    with os.fdopen(fd, "w", encoding="utf-8") as handle:
-        json.dump(data, handle, ensure_ascii=False, separators=(",", ":"))
-        handle.flush()
-        os.fsync(handle.fileno())
-    os.replace(tmp_path, prefs_path)
-except Exception:
-    try:
-        os.unlink(tmp_path)
-    except OSError:
-        pass
-    raise
+with open(prefs_path, "w", encoding="utf-8") as handle:
+    json.dump(data, handle, indent=2, sort_keys=True)
 PY
-    then
-        echo "⚠️  Failed to update Chrome preferences; skipping JavaScript disable"
-        return 0
-    fi
 
     echo "✅ JavaScript disabled for $DOMAIN in Chrome preferences"
 }

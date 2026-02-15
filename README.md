@@ -46,15 +46,14 @@ The friction is the point - if it was easy to unlock, it wouldn't work.
 
 - Unix-like system with `/etc/hosts` (macOS, Linux, BSD, WSL)
 - `sudo` access (required to modify `/etc/hosts`)
-- `python3` (optional; only used by `-j`/`--disable-js`)
+- `python3` (required for `-j`/`--disable-js`)
 
 **Note:** DNS cache flushing is handled automatically on macOS and most Linux systems. On other systems, you may need to restart your browser for changes to take effect.
 
 ## Flags
 
 - `-t`, `--kill-terminal`: Close the current terminal session after locking the domain.
-- `-j`, `--disable-js`: Best-effort: disable JavaScript for the domain in Chrome preferences and close Chrome if running.
-- `-j` fallback behavior: if Chrome preferences are missing/not writable, `python3` is unavailable, or the JSON update fails, the domain lock still succeeds and the script exits successfully.
+- `-j`, `--disable-js`: Disable JavaScript for the domain in Chrome preferences and close Chrome if running (`python3` required).
 
 ## Credits
 
