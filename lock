@@ -20,7 +20,7 @@ usage() {
     echo ""
     echo "Options:"
     echo "  -t, --kill-terminal   Close the current terminal session after locking"
-    echo "  -j, --disable-js      Disable JavaScript in Chrome for the domain (requires python3)"
+    echo "  -j, --disable-js      Best-effort: disable JavaScript in Chrome for the domain"
     echo "  -h, --help            Show this help message"
     echo ""
     echo "Examples:"
@@ -142,6 +142,11 @@ disable_js_chrome() {
         return 0
     fi
 
+    if ! command -v python3 >/dev/null 2>&1; then
+        echo "⚠️  python3 not found; skipping JavaScript disable"
+        return 0
+    fi
+
     # Close Chrome first so it does not overwrite Preferences on shutdown.
     if [ "$(uname)" = "Darwin" ]; then
         if pgrep -x "Google Chrome" > /dev/null 2>&1; then
@@ -153,7 +158,7 @@ disable_js_chrome() {
         pkill -x "chromium" >/dev/null 2>&1 || true
     fi
 
-    python3 - "$PREFS_PATH" "$DOMAIN" <<'PY'
+    if ! python3 - "$PREFS_PATH" "$DOMAIN" <<'PY'
 import json
 import sys
 
@@ -180,6 +185,10 @@ set_js_lock(f"www.{domain}")
 with open(prefs_path, "w", encoding="utf-8") as handle:
     json.dump(data, handle, indent=2, sort_keys=True)
 PY
+    then
+        echo "⚠️  Failed to update Chrome preferences; skipping JavaScript disable"
+        return 0
+    fi
 
     echo "✅ JavaScript disabled for $DOMAIN in Chrome preferences"
 }
