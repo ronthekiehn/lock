@@ -1,8 +1,8 @@
 # lock
 
-A quick script I use to block Twitter (and other sites) across all browsers. Written by Claude.
+A quick script I use to lock Twitter (and other sites) across all browsers. Written by Claude.
 
-The idea: make locking frictionless, but unlocking hard. One command blocks a site instantly via `/etc/hosts`. To unblock, you have to manually edit the file with sudo. Just enough friction to break the habit.
+The idea: make locking frictionless, but unlocking hard. One command locks a site instantly via `/etc/hosts`. To unlock, you have to manually edit the file with sudo. Just enough friction to break the habit.
 
 There's intentionally no `unlock` command.
 
@@ -24,7 +24,7 @@ The install script is [open source](https://github.com/ronthekiehn/lock/blob/mai
 
 ## Usage
 
-Block any distracting website:
+Lock any distracting website:
 
 ```bash
 lock x.com
@@ -33,7 +33,7 @@ lock youtube.com
 lock instagram.com
 ```
 
-To unblock, you'll need to manually edit `/etc/hosts`:
+To unlock, you'll need to manually edit `/etc/hosts`:
 
 ```bash
 sudo nano /etc/hosts
@@ -48,6 +48,11 @@ The friction is the point - if it was easy to unlock, it wouldn't work.
 - `sudo` access (required to modify `/etc/hosts`)
 
 **Note:** DNS cache flushing is handled automatically on macOS and most Linux systems. On other systems, you may need to restart your browser for changes to take effect.
+
+## Flags
+
+- `-t`, `--kill-terminal`: Close the current terminal session after locking the domain.
+- `-j`, `--disable-js`: Disable JavaScript for the domain in Chrome preferences and restart Chrome (best effort).
 
 ## Credits
 
