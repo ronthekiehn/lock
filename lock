@@ -1,24 +1,71 @@
 #!/bin/sh
 #
-# lock - Block a website via /etc/hosts
+# lock - Lock a website via /etc/hosts
 #
 # Usage:
-#   lock <domain>
+#   lock [options] <domain>
 #
 # Examples:
 #   lock x.com
 #   lock reddit.com
+#   lock --kill-terminal x.com
+#   lock -j x.com
 
 set -e
 
 # --- Argument parsing ---
 
-if [ -z "$1" ]; then
-    echo "Usage: lock <domain>"
+usage() {
+    echo "Usage: lock [options] <domain>"
+    echo ""
+    echo "Options:"
+    echo "  -t, --kill-terminal   Close the current terminal session after locking"
+    echo "  -j, --disable-js      Best-effort: disable JavaScript in Chrome for the domain"
+    echo "  -h, --help            Show this help message"
     echo ""
     echo "Examples:"
     echo "  lock x.com"
     echo "  lock reddit.com"
+    echo "  lock --kill-terminal x.com"
+    echo "  lock -j x.com"
+    echo ""
+    echo "Unlock:"
+    echo "  sudo nano /etc/hosts (remove the lock entries)"
+}
+
+KILL_TERMINAL=0
+DISABLE_JS=0
+
+while [ $# -gt 0 ]; do
+    case "$1" in
+        -t|--kill-terminal)
+            KILL_TERMINAL=1
+            ;;
+        -j|--disable-js)
+            DISABLE_JS=1
+            ;;
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        --)
+            shift
+            break
+            ;;
+        -*)
+            echo "Unknown option: $1"
+            usage
+            exit 1
+            ;;
+        *)
+            break
+            ;;
+    esac
+    shift
+done
+
+if [ -z "$1" ]; then
+    usage
     exit 1
 fi
 
@@ -34,43 +81,123 @@ LOCK_TAG="# lock: $DOMAIN"
 echo "🔒 Locking $DOMAIN..."
 
 # Check if already locked
+ALREADY_LOCKED=0
 if grep -q "0.0.0.0 $DOMAIN" /etc/hosts 2>/dev/null; then
     echo "ℹ️  $DOMAIN is already locked"
-    exit 0
+    ALREADY_LOCKED=1
 fi
 
-# Build hosts entries
-HOSTS_ENTRIES="$LOCK_TAG
+if [ "$ALREADY_LOCKED" -eq 0 ]; then
+    # Build hosts entries
+    HOSTS_ENTRIES="$LOCK_TAG
 0.0.0.0 $DOMAIN
 0.0.0.0 www.$DOMAIN
 "
 
-# Add entries to /etc/hosts
-echo "$HOSTS_ENTRIES" | sudo tee -a /etc/hosts > /dev/null
-echo "✅ Added $DOMAIN to /etc/hosts"
+    # Add entries to /etc/hosts
+    echo "$HOSTS_ENTRIES" | sudo tee -a /etc/hosts > /dev/null
+    echo "✅ Added $DOMAIN to /etc/hosts"
 
-# Flush DNS cache (OS-specific)
-if [ "$(uname)" = "Darwin" ]; then
-    # macOS
-    sudo dscacheutil -flushcache
-    sudo killall -HUP mDNSResponder 2>/dev/null || true
-    echo "✅ DNS cache flushed"
-elif [ "$(uname)" = "Linux" ]; then
-    # Linux - varies by system, try common ones
-    if command -v systemd-resolve > /dev/null 2>&1; then
-        sudo systemd-resolve --flush-caches 2>/dev/null && echo "✅ DNS cache flushed" || true
-    elif command -v resolvectl > /dev/null 2>&1; then
-        sudo resolvectl flush-caches 2>/dev/null && echo "✅ DNS cache flushed" || true
+    # Flush DNS cache (OS-specific)
+    if [ "$(uname)" = "Darwin" ]; then
+        # macOS
+        sudo dscacheutil -flushcache
+        sudo killall -HUP mDNSResponder 2>/dev/null || true
+        echo "✅ DNS cache flushed"
+    elif [ "$(uname)" = "Linux" ]; then
+        # Linux - varies by system, try common ones
+        if command -v systemd-resolve > /dev/null 2>&1; then
+            sudo systemd-resolve --flush-caches 2>/dev/null && echo "✅ DNS cache flushed" || true
+        elif command -v resolvectl > /dev/null 2>&1; then
+            sudo resolvectl flush-caches 2>/dev/null && echo "✅ DNS cache flushed" || true
+        else
+            echo "ℹ️  DNS cache flush skipped (no systemd DNS resolver detected)"
+            echo "   Restart your browser for changes to take effect"
+        fi
     else
-        echo "ℹ️  DNS cache flush skipped (no systemd DNS resolver detected)"
-        echo "   Restart your browser for changes to take effect"
+        echo "ℹ️  DNS cache flush skipped (unsupported OS: $(uname))"
+        echo "   You may need to restart your browser for changes to take effect"
     fi
-else
-    echo "ℹ️  DNS cache flush skipped (unsupported OS: $(uname))"
-    echo "   You may need to restart your browser for changes to take effect"
+
+    echo ""
+    echo "🔒 $DOMAIN is now locked"
+fi
+echo ""
+
+disable_js_chrome() {
+    PREFS_PATH=""
+
+    if [ "$(uname)" = "Darwin" ]; then
+        PREFS_PATH="$HOME/Library/Application Support/Google/Chrome/Default/Preferences"
+    elif [ "$(uname)" = "Linux" ]; then
+        if [ -f "$HOME/.config/google-chrome/Default/Preferences" ]; then
+            PREFS_PATH="$HOME/.config/google-chrome/Default/Preferences"
+        elif [ -f "$HOME/.config/chromium/Default/Preferences" ]; then
+            PREFS_PATH="$HOME/.config/chromium/Default/Preferences"
+        fi
+    fi
+
+    if [ -z "$PREFS_PATH" ] || [ ! -f "$PREFS_PATH" ]; then
+        echo "⚠️  Chrome preferences not found; skipping JavaScript disable"
+        return 0
+    fi
+
+    if ! command -v python3 >/dev/null 2>&1; then
+        echo "⚠️  python3 not found; skipping JavaScript disable"
+        return 0
+    fi
+
+    # Close Chrome first so it does not overwrite Preferences on shutdown.
+    if [ "$(uname)" = "Darwin" ]; then
+        if pgrep -x "Google Chrome" > /dev/null 2>&1; then
+            osascript -e 'quit app "Google Chrome"' >/dev/null 2>&1 || true
+        fi
+    elif [ "$(uname)" = "Linux" ]; then
+        pkill -x "google-chrome" >/dev/null 2>&1 || true
+        pkill -x "google-chrome-stable" >/dev/null 2>&1 || true
+        pkill -x "chromium" >/dev/null 2>&1 || true
+    fi
+
+    if ! python3 - "$PREFS_PATH" "$DOMAIN" <<'PY'
+import json
+import sys
+
+prefs_path = sys.argv[1]
+domain = sys.argv[2]
+
+with open(prefs_path, "r", encoding="utf-8") as handle:
+    data = json.load(handle)
+
+profile = data.setdefault("profile", {})
+content_settings = profile.setdefault("content_settings", {})
+exceptions = content_settings.setdefault("exceptions", {})
+javascript = exceptions.setdefault("javascript", {})
+
+def set_js_lock(host):
+    key_https = f"https://{host}:443,*"
+    key_http = f"http://{host}:80,*"
+    javascript[key_https] = {"setting": 2}
+    javascript[key_http] = {"setting": 2}
+
+set_js_lock(domain)
+set_js_lock(f"www.{domain}")
+
+with open(prefs_path, "w", encoding="utf-8") as handle:
+    json.dump(data, handle, indent=2, sort_keys=True)
+PY
+    then
+        echo "⚠️  Failed to update Chrome preferences; skipping JavaScript disable"
+        return 0
+    fi
+
+    echo "✅ JavaScript disabled for $DOMAIN in Chrome preferences"
+}
+
+if [ "$DISABLE_JS" -eq 1 ]; then
+    disable_js_chrome
 fi
 
-echo ""
-echo "🔒 $DOMAIN is now blocked"
-echo ""
-echo "To unlock: sudo nano /etc/hosts (remove the lock entries)"
+if [ "$KILL_TERMINAL" -eq 1 ]; then
+    echo "👋 Closing this terminal session..."
+    kill -HUP "$PPID" 2>/dev/null || kill -TERM "$PPID" 2>/dev/null || true
+fi
