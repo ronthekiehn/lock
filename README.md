@@ -1,6 +1,6 @@
 # lock
 
-A quick script I use to lock Twitter (and other sites) across all browsers. Written by Claude.
+A quick CLI I use to lock Twitter (and other sites) across all browsers.
 
 The idea: make locking frictionless, but unlocking hard. One command locks a site instantly via `/etc/hosts`. To unlock, you have to manually edit the file with sudo. Just enough friction to break the habit.
 
@@ -8,19 +8,19 @@ There's intentionally no `unlock` command.
 
 ## Install
 
+From latest GitHub release:
+
 ```bash
 curl -fsSL https://raw.githubusercontent.com/ronthekiehn/lock/main/install.sh | sh
 ```
 
-Or manually:
+For local development (installs current working tree binary to `/usr/local/bin/lock`):
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/ronthekiehn/lock/main/lock -o lock
-chmod +x lock
-sudo install -m 0755 lock /usr/local/bin/lock
+make install
 ```
 
-The install script is [open source](https://github.com/ronthekiehn/lock/blob/main/install.sh) - feel free to review it first.
+`make install` defaults to `/usr/local/bin`; override with `PREFIX=/some/bin make install`.
 
 ## Usage
 
@@ -31,8 +31,10 @@ lock x.com
 lock reddit.com
 lock youtube.com
 lock instagram.com
-lock x.com reddit.com youtube.com
+lock x.com reddit.com
 lock -n "finish PR before scrolling" x.com reddit.com
+lock -j x.com
+lock --status
 ```
 
 To unlock, you'll need to manually edit `/etc/hosts`:
@@ -46,11 +48,9 @@ The friction is the point - if it was easy to unlock, it wouldn't work.
 
 ## Requirements
 
-- Unix-like system with `/etc/hosts` (macOS, Linux, BSD, WSL)
+- macOS
 - `sudo` access (required to modify `/etc/hosts`)
-- `python3` (optional; used by `-j`/`--disable-js`, state metadata, and duration calculations for `--status`)
-
-**Note:** DNS cache flushing is handled automatically on macOS and most Linux systems. On other systems, you may need to restart your browser for changes to take effect.
+- Go 1.22+ (only needed for local builds/install with `make`)
 
 ## Flags
 
@@ -64,7 +64,6 @@ The friction is the point - if it was easy to unlock, it wouldn't work.
 `lock --status` reads active locks from `/etc/hosts` and enriches duration/note data from a state file:
 
 - macOS: `~/Library/Application Support/lock/state.json`
-- Linux/WSL: `~/.local/state/lock/state.json`
 
 State format:
 
@@ -81,6 +80,30 @@ State format:
 ```
 
 If `state_version` mismatches or the file is corrupt, lock rebuilds state from active `/etc/hosts` lock entries and writes `state_version: 1`.
+
+## Development
+
+Build:
+
+```bash
+make build
+```
+
+Install locally to your bin directory:
+
+```bash
+make install
+```
+
+## Release Build
+
+Create local release artifacts (without publishing):
+
+```bash
+make release-local
+```
+
+`install.sh` is still kept for one-line install from GitHub release binaries.
 
 ## Credits
 
