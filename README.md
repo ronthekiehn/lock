@@ -63,8 +63,8 @@ The friction is the point - if it was easy to unlock, it wouldn't work.
 
 Version format:
 - release binaries: release tag version
-  - automatic main releases use simple integer tags: `r0`, `r1`, `r2`, ...
-  - i'm too lazy to do semver :)
+  - automatic main releases use incrementing tags: `v0.0.0`, `v0.0.1`, `v0.0.2`, ...
+  - this is intentionally simple counter-style versioning (patch number increases by 1)
 - local builds: `0.0.0-dev+<shortsha>` (and `.dirty` when working tree has uncommitted changes)
 
 ## State File
