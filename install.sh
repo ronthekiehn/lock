@@ -56,11 +56,18 @@ chmod +x "$TMP_DIR/lock"
 
 if [ ! -d "$INSTALL_DIR" ]; then
     echo "Creating $INSTALL_DIR..."
-    sudo mkdir -p "$INSTALL_DIR"
+    if ! mkdir -p "$INSTALL_DIR" 2>/dev/null; then
+        sudo mkdir -p "$INSTALL_DIR"
+    fi
 fi
 
-echo "Installing to $INSTALL_DIR (requires sudo)..."
-sudo install -m 0755 "$TMP_DIR/lock" "$INSTALL_DIR/lock"
+if [ -w "$INSTALL_DIR" ]; then
+    echo "Installing to $INSTALL_DIR..."
+    install -m 0755 "$TMP_DIR/lock" "$INSTALL_DIR/lock"
+else
+    echo "Installing to $INSTALL_DIR (requires sudo)..."
+    sudo install -m 0755 "$TMP_DIR/lock" "$INSTALL_DIR/lock"
+fi
 
 echo "✅ lock installed successfully!"
 echo ""

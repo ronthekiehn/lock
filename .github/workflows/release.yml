@@ -26,7 +26,7 @@ jobs:
         with:
           go-version-file: go.mod
 
-      - name: Create release tag
+      - name: Compute next release tag
         id: tag
         shell: bash
         run: |
@@ -44,12 +44,16 @@ jobs:
             next_num=$((last_num + 1))
           fi
           tag="r${next_num}"
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+
+      - name: Create local release tag
+        shell: bash
+        run: |
+          tag="${{ steps.tag.outputs.tag }}"
 
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git tag -a "${tag}" -m "Release ${tag}"
-          git push origin "${tag}"
-          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
 
       - name: Build and publish release
         uses: goreleaser/goreleaser-action@v6
@@ -59,3 +63,13 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Push release tag
+        shell: bash
+        run: |
+          tag="${{ steps.tag.outputs.tag }}"
+          if git ls-remote --exit-code --tags origin "refs/tags/${tag}" >/dev/null 2>&1; then
+            echo "Tag already exists on origin: ${tag}"
+          else
+            git push origin "refs/tags/${tag}:refs/tags/${tag}"
+          fi
