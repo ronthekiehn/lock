@@ -63,8 +63,8 @@ The friction is the point - if it was easy to unlock, it wouldn't work.
 
 Version format:
 - release binaries: release tag version
-  - automatic main releases use `v0.0.0-main.<UTC timestamp>.<shortsha>`
-  - manual tagged releases can still use semantic versions like `v1.2.3`
+  - automatic main releases use simple integer tags: `r0`, `r1`, `r2`, ...
+  - this project intentionally does not use semver
 - local builds: `0.0.0-dev+<shortsha>` (and `.dirty` when working tree has uncommitted changes)
 
 ## State File
