@@ -2,12 +2,14 @@ BIN_NAME := lock
 BUILD_DIR := build
 BIN_PATH := $(BUILD_DIR)/$(BIN_NAME)
 PREFIX ?= /usr/local/bin
+VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
+LDFLAGS := -X main.version=$(VERSION)
 
 .PHONY: build install uninstall clean release-local
 
 build:
 	mkdir -p $(BUILD_DIR)
-	go build -o $(BIN_PATH) ./cmd/lock
+	go build -ldflags "$(LDFLAGS)" -o $(BIN_PATH) ./cmd/lock
 
 install: build
 	if [ -w "$(PREFIX)" ]; then \

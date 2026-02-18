@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/ronthekiehn/lock/internal/chrome"
@@ -13,6 +14,8 @@ import (
 	"github.com/ronthekiehn/lock/internal/state"
 	"github.com/ronthekiehn/lock/internal/system"
 )
+
+var version = "dev"
 
 func main() {
 	opts, showHelp, parseErr := cli.Parse(os.Args[1:])
@@ -34,11 +37,34 @@ func main() {
 		runStatus()
 		return
 	}
+	if opts.ShowVersion {
+		runVersion()
+		return
+	}
 
 	if err := runLock(opts); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
+}
+
+func runVersion() {
+	binaryPath := "unknown"
+	if executable, err := os.Executable(); err == nil {
+		binaryPath = executable
+		if resolved, err := filepath.EvalSymlinks(executable); err == nil {
+			binaryPath = resolved
+		}
+	}
+
+	statePath := state.Path()
+	if statePath == "" {
+		statePath = "unknown"
+	}
+
+	fmt.Printf("lock version %s\n", version)
+	fmt.Printf("binary_path=%s\n", binaryPath)
+	fmt.Printf("state_path=%s\n", statePath)
 }
 
 func runStatus() {

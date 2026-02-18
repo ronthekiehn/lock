@@ -8,6 +8,8 @@ builds:
   - id: lock
     main: ./cmd/lock
     binary: lock
+    ldflags:
+      - -s -w -X main.version={{.Version}}
     goos:
       - darwin
     goarch:

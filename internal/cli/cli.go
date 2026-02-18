@@ -10,6 +10,7 @@ import (
 type Options struct {
 	Note         string
 	ShowStatus   bool
+	ShowVersion  bool
 	KillTerminal bool
 	DisableJS    bool
 	Domains      []string
@@ -30,6 +31,7 @@ func Usage() string {
 Options:
   -n, --note <text>     Add a note to lock comments in /etc/hosts
   -s, --status          Show currently locked domains and durations
+  -v, --version         Show lock version and key local paths
   -t, --kill-terminal   Close the current terminal session after locking
   -j, --disable-js      Best-effort: disable JavaScript in Chrome for each domain
   -h, --help            Show this help message
@@ -40,6 +42,7 @@ Examples:
   lock --kill-terminal x.com
   lock -j x.com
   lock --status
+  lock --version
 
 Unlock:
   sudo nano /etc/hosts (remove the lock entries)
@@ -59,6 +62,8 @@ func Parse(args []string) (Options, bool, *ParseError) {
 			opts.DisableJS = true
 		case "-s", "--status":
 			opts.ShowStatus = true
+		case "-v", "--version":
+			opts.ShowVersion = true
 		case "-n", "--note":
 			i++
 			if i >= len(args) || args[i] == "" {
@@ -78,9 +83,20 @@ func Parse(args []string) (Options, bool, *ParseError) {
 		}
 	}
 
+	if opts.ShowStatus && opts.ShowVersion {
+		return Options{}, false, &ParseError{Message: "--status and --version cannot be used together", ShowUsage: true}
+	}
+
 	if opts.ShowStatus {
 		if len(domainInputs) > 0 {
 			return Options{}, false, &ParseError{Message: "--status does not accept domains", ShowUsage: true}
+		}
+		return opts, false, nil
+	}
+
+	if opts.ShowVersion {
+		if len(domainInputs) > 0 {
+			return Options{}, false, &ParseError{Message: "--version does not accept domains", ShowUsage: true}
 		}
 		return opts, false, nil
 	}

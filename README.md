@@ -35,6 +35,7 @@ lock x.com reddit.com
 lock -n "finish PR before scrolling" x.com reddit.com
 lock -j x.com
 lock --status
+lock --version
 ```
 
 To unlock, you'll need to manually edit `/etc/hosts`:
@@ -56,6 +57,7 @@ The friction is the point - if it was easy to unlock, it wouldn't work.
 
 - `-n`, `--note`: Add a shared note for this lock command. The note is written into `/etc/hosts` lock comments.
 - `-s`, `--status`: Show currently active locks, including duration (`locked_for`) and saved note metadata.
+- `-v`, `--version`: Show binary version, installed binary path, and lock state file path.
 - `-t`, `--kill-terminal`: Close the current terminal session after locking the domain.
 - `-j`, `--disable-js`: Best-effort: disable JavaScript in Chrome preferences for each provided domain and close Chrome if running.
 
