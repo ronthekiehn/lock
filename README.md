@@ -6,6 +6,11 @@ The idea: make locking frictionless, but unlocking hard. One command locks a sit
 
 There's intentionally no `unlock` command.
 
+
+## Credits
+
+Built entirely with Claude in Cursor and Codex. I did not touch a line of code here. Codex for some reason does not attribute itself on github.
+
 ## Install
 
 From latest GitHub release:
@@ -116,9 +121,6 @@ make release-local
 
 `install.sh` is still kept for one-line install from GitHub release binaries.
 
-## Credits
-
-Built with [Claude](https://claude.ai) (Anthropic) and Codex (OpenAI).
 
 ## License
 
