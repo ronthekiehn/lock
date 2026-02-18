@@ -61,6 +61,10 @@ The friction is the point - if it was easy to unlock, it wouldn't work.
 - `-t`, `--kill-terminal`: Close the current terminal session after locking the domain.
 - `-j`, `--disable-js`: Best-effort: disable JavaScript in Chrome preferences for each provided domain and close Chrome if running.
 
+Version format:
+- release binaries: git tag version (example `v1.2.3`)
+- local builds: `0.0.0-dev+<shortsha>` (and `.dirty` when working tree has uncommitted changes)
+
 ## State File
 
 `lock --status` reads active locks from `/etc/hosts` and enriches duration/note data from a state file:

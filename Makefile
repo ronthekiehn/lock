@@ -2,7 +2,16 @@ BIN_NAME := lock
 BUILD_DIR := build
 BIN_PATH := $(BUILD_DIR)/$(BIN_NAME)
 PREFIX ?= /usr/local/bin
-VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
+VERSION ?= $(shell \
+	TAG=$$(git describe --tags --exact-match 2>/dev/null || true); \
+	COMMIT=$$(git rev-parse --short HEAD 2>/dev/null || echo unknown); \
+	DIRTY=$$(test -n "$$(git status --porcelain 2>/dev/null)" && echo ".dirty" || true); \
+	if [ -n "$$TAG" ]; then \
+		echo "$$TAG"; \
+	else \
+		echo "0.0.0-dev+$$COMMIT$$DIRTY"; \
+	fi \
+)
 LDFLAGS := -X main.version=$(VERSION)
 
 .PHONY: build install uninstall clean release-local
