@@ -62,7 +62,9 @@ The friction is the point - if it was easy to unlock, it wouldn't work.
 - `-j`, `--disable-js`: Best-effort: disable JavaScript in Chrome preferences for each provided domain and close Chrome if running.
 
 Version format:
-- release binaries: git tag version (example `v1.2.3`)
+- release binaries: release tag version
+  - automatic main releases use `v0.0.0-main.<UTC timestamp>.<shortsha>`
+  - manual tagged releases can still use semantic versions like `v1.2.3`
 - local builds: `0.0.0-dev+<shortsha>` (and `.dirty` when working tree has uncommitted changes)
 
 ## State File
@@ -101,9 +103,11 @@ Install locally to your bin directory:
 make install
 ```
 
-## Release Build
+## Release
 
-Create local release artifacts (without publishing):
+Pushes to `main` automatically create and publish a GitHub Release via GoReleaser.
+
+Create local release artifacts only (without publishing):
 
 ```bash
 make release-local
