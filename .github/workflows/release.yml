@@ -32,19 +32,19 @@ jobs:
         shell: bash
         run: |
           git fetch --tags origin
-          last_num="$(
-            git tag -l 'v0.0.*' \
-              | sed -E 's/^v0\.0\.([0-9]+)$/\1/' \
+          last_major="$(
+            git tag -l 'v*' \
+              | sed -E 's/^v([0-9]+)\.[0-9]+\.[0-9]+$/\1/' \
               | awk '/^[0-9]+$/' \
               | sort -n \
               | tail -1
           )"
-          if [ -z "${last_num}" ]; then
-            next_num=0
+          if [ -z "${last_major}" ]; then
+            next_major=0
           else
-            next_num=$((last_num + 1))
+            next_major=$((last_major + 1))
           fi
-          tag="v0.0.${next_num}"
+          tag="v${next_major}.0.0"
           echo "tag=${tag}" >> "$GITHUB_OUTPUT"
 
       - name: Create local release tag
