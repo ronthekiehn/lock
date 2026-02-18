@@ -63,7 +63,7 @@ The friction is the point - if it was easy to unlock, it wouldn't work.
 
 
 Version format:
-- Automatic main releases use incrementing tags: `v0.0.0`, `v1.0.0`. 
+- Automatic main releases use incrementing major tags: `v0.0.0`, `v1.0.0`, `v2.0.0`, ...
 - I'm too lazy for semver.
 
 ## Development
